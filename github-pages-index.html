@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Confirmation - Nowak Tattoo</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 450px;
+            margin: 40px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 25px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .message {
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 10px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .success {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: 1px solid #4CAF50;
+        }
+        .error {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            color: white;
+            border: 1px solid #f44336;
+        }
+        .loading {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+            border: 1px solid #2196F3;
+        }
+        button {
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            color: #333;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+        }
+        .app-button {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+        }
+        .app-button:hover {
+            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+        }
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🖤</div>
+        <h1>Nowak Tattoo</h1>
+        <h2>Email Confirmation</h2>
+        <div id="message" class="message loading">
+            <div class="spinner"></div>
+            Confirming your email address...
+        </div>
+        <div id="buttons" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Initialize Supabase
+        const { createClient } = supabase;
+        const client = createClient(
+            'https://trbfaozlvwykygnrxaxy.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRyYmZhb3psdnd5a3lnbnJ4YXh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3NzIxMDMsImV4cCI6MjA3MDM0ODEwM30.yoocL7YVlTYpIiH_T9HYMspVU8pBAG6x7yJSFPgLKDU'
+        );
+
+        const messageDiv = document.getElementById('message');
+        const buttonsDiv = document.getElementById('buttons');
+
+        // Handle email confirmation on page load
+        async function handleEmailConfirmation() {
+            try {
+                console.log('🔐 Starting email confirmation process...');
+                console.log('🔗 Current URL:', window.location.href);
+                
+                // Check URL hash for tokens (Supabase puts them there)
+                const hash = window.location.hash.substring(1);
+                const hashParams = new URLSearchParams(hash);
+                
+                // Also check URL search params as fallback
+                const searchParams = new URLSearchParams(window.location.search);
+                
+                const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+                const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+                const type = hashParams.get('type') || searchParams.get('type');
+                const error = hashParams.get('error') || searchParams.get('error');
+                const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+
+                console.log('📋 Confirmation params:', { 
+                    type, 
+                    hasAccessToken: !!accessToken, 
+                    hasRefreshToken: !!refreshToken, 
+                    error, 
+                    errorDescription,
+                    hash: hash,
+                    search: window.location.search
+                });
+
+                if (error) {
+                    console.error('❌ URL contains error:', error, errorDescription);
+                    showMessage(`❌ Confirmation failed: ${errorDescription || error}`, 'error');
+                    showButtons(false);
+                    return;
+                }
+
+                if (!accessToken || !refreshToken) {
+                    console.warn('⚠️ Missing tokens in URL');
+                    showMessage('❌ Invalid confirmation link format.<br><br>Please check your email for the correct confirmation link.', 'error');
+                    showButtons(false);
+                    return;
+                }
+
+                if (type === 'signup' && accessToken && refreshToken) {
+                    console.log('✅ Valid signup confirmation tokens found');
+                    
+                    // Set the session with tokens from URL
+                    const { data, error } = await client.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+
+                    console.log('🔐 Session set result:', { data: !!data.session, error });
+
+                    if (error) {
+                        console.error('❌ Session set error:', error);
+                        showMessage(`❌ Email confirmation failed: ${error.message}`, 'error');
+                        showButtons(false);
+                    } else {
+                        console.log('🎉 Email confirmation successful!');
+                        showMessage('🎉 Email confirmed successfully!<br><br>Your account is now active and you can log in to the app.', 'success');
+                        showButtons(true);
+                        
+                        // Sign out after confirmation to force fresh login
+                        setTimeout(async () => {
+                            console.log('🔓 Signing out after confirmation...');
+                            await client.auth.signOut();
+                        }, 1000);
+                    }
+                } else {
+                    console.warn('⚠️ Unexpected confirmation type:', type);
+                    showMessage('❌ Invalid confirmation type.<br><br>Please check your email for the correct confirmation link.', 'error');
+                    showButtons(false);
+                }
+            } catch (err) {
+                console.error('💥 Confirmation error:', err);
+                showMessage(`❌ Error processing confirmation: ${err.message}`, 'error');
+                showButtons(false);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', handleEmailConfirmation);
+
+        function showMessage(text, type) {
+            messageDiv.innerHTML = text;
+            messageDiv.className = 'message ' + type;
+        }
+
+        function showButtons(success) {
+            if (success) {
+                buttonsDiv.innerHTML = `
+                    <button class="app-button" onclick="goBackToApp()">
+                        📱 Open Nowak Tattoo App
+                    </button>
+                    <br><br>
+                    <button onclick="openWebsite()">
+                        🌐 Visit Website
+                    </button>
+                `;
+            } else {
+                buttonsDiv.innerHTML = `
+                    <button onclick="requestNewConfirmation()">
+                        📧 Resend Confirmation Email
+                    </button>
+                    <br><br>
+                    <button onclick="contactSupport()">
+                        💬 Contact Support
+                    </button>
+                `;
+            }
+            buttonsDiv.style.display = 'block';
+        }
+
+        // Go back to app
+        function goBackToApp() {
+            // Try to open the app's deep link (if configured)
+            const appScheme = 'nowaktattooapp://confirmed';
+            
+            console.log('📱 Attempting to open app with:', appScheme);
+            
+            // Create a temporary link and try to open it
+            const link = document.createElement('a');
+            link.href = appScheme;
+            link.click();
+            
+            // Fallback message if deep link doesn't work
+            setTimeout(() => {
+                showMessage('🎉 Email confirmed!<br><br>If the app didn\'t open automatically, please open the Nowak Tattoo app manually and log in with your credentials.', 'success');
+            }, 2000);
+        }
+
+        // Open website
+        function openWebsite() {
+            window.open('https://nowaktattoo.com', '_blank');
+        }
+
+        // Request new confirmation email
+        function requestNewConfirmation() {
+            const email = prompt('Please enter your email address to resend confirmation:');
+            if (email && email.includes('@')) {
+                // This would need to be implemented with your backend
+                showMessage('📧 Please contact support to resend your confirmation email.<br><br>Email: support@nowaktattoo.com', 'success');
+            } else if (email) {
+                alert('Please enter a valid email address.');
+            }
+        }
+
+        // Contact support
+        function contactSupport() {
+            window.open('mailto:support@nowaktattoo.com?subject=Email Confirmation Issue&body=I am having trouble confirming my email address for my Nowak Tattoo account.', '_blank');
+        }
+    </script>
+</body>
+</html>
