@@ -20,7 +20,9 @@ jobs:
           node-version: '18'
 
       - name: Install Supabase CLI
-        run: npm install -g supabase
+        run: |
+          wget -qO- https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz | tar xvz
+          sudo mv supabase /usr/local/bin/supabase
 
       - name: Run Supabase migrations
         env:
